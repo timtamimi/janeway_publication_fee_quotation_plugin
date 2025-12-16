@@ -1,0 +1,138 @@
+{% extends "admin/core/base.html" %}
+{% load static i18n %}
+
+{% block title-section %}{% trans "Fee Quotation Details" %}{% endblock %}
+
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li><a href="{% url 'core_manager_index' %}">{% trans "Manager" %}</a></li>
+    <li><a href="{% url 'fee_quotation_manager' %}">{% trans "Fee Quotation" %}</a></li>
+    <li>{% trans "Quotation Details" %}</li>
+{% endblock %}
+
+{% block body %}
+<div class="box">
+    <div class="row expanded">
+        <div class="large-8 columns">
+            <div class="title-area">
+                <h2>{% trans "Quotation" %} {{ quotation.external_quote_id|default:quotation.pk }}</h2>
+            </div>
+            
+            <table class="scroll">
+                <tbody>
+                    <tr>
+                        <th>{% trans "Quote ID" %}</th>
+                        <td><code>{{ quotation.external_quote_id|default:"N/A" }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Internal ID" %}</th>
+                        <td><small>{{ quotation.pk }}</small></td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Article" %}</th>
+                        <td>
+                            <a href="{% url 'manage_archive_article' quotation.article.pk %}">
+                                {{ quotation.article.title }}
+                            </a>
+                            <br><small>(ID: {{ quotation.article.pk }})</small>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Author" %}</th>
+                        <td>
+                            {{ quotation.author.full_name }}
+                            <br><small>{{ quotation.author.email }}</small>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Status" %}</th>
+                        <td>
+                            {% if quotation.status == 'accepted' %}
+                                <span class="label success">{{ quotation.get_status_display }}</span>
+                            {% elif quotation.status == 'declined' %}
+                                <span class="label alert">{{ quotation.get_status_display }}</span>
+                            {% elif quotation.status == 'error' %}
+                                <span class="label alert">{{ quotation.get_status_display }}</span>
+                            {% else %}
+                                <span class="label secondary">{{ quotation.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Quotation URL" %}</th>
+                        <td>
+                            {% if quotation.quotation_url %}
+                                <a href="{{ quotation.quotation_url }}" target="_blank">
+                                    {{ quotation.quotation_url|truncatechars:60 }}
+                                    <i class="fa fa-external-link"></i>
+                                </a>
+                            {% else %}
+                                <em>{% trans "Not available" %}</em>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Created" %}</th>
+                        <td>{{ quotation.created|date:"Y-m-d H:i:s" }}</td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Updated" %}</th>
+                        <td>{{ quotation.updated|date:"Y-m-d H:i:s" }}</td>
+                    </tr>
+                    {% if quotation.webhook_received_at %}
+                    <tr>
+                        <th>{% trans "Webhook Received" %}</th>
+                        <td>{{ quotation.webhook_received_at|date:"Y-m-d H:i:s" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if quotation.expires_at %}
+                    <tr>
+                        <th>{% trans "Expires" %}</th>
+                        <td>
+                            {{ quotation.expires_at|date:"Y-m-d H:i:s" }}
+                            {% if quotation.is_expired %}
+                                <span class="label warning">{% trans "Expired" %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            
+            {% if quotation.error_message %}
+            <div class="callout alert">
+                <h5>{% trans "Error Message" %}</h5>
+                <p>{{ quotation.error_message }}</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="large-4 columns">
+            {% if quotation.api_response %}
+            <div class="title-area">
+                <h2>{% trans "API Response" %}</h2>
+            </div>
+            <div class="callout secondary">
+                <pre style="font-size: 11px; overflow-x: auto; max-height: 300px;">{{ quotation.api_response_pretty }}</pre>
+            </div>
+            {% endif %}
+            
+            {% if quotation.webhook_payload %}
+            <div class="title-area">
+                <h2>{% trans "Webhook Payload" %}</h2>
+            </div>
+            <div class="callout secondary">
+                <pre style="font-size: 11px; overflow-x: auto; max-height: 300px;">{{ quotation.webhook_payload_pretty }}</pre>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="box">
+    <a href="{% url 'fee_quotation_manager' %}" class="button secondary">
+        <i class="fa fa-arrow-left"></i> {% trans "Back to Manager" %}
+    </a>
+</div>
+{% endblock %}
+

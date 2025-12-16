@@ -1,0 +1,264 @@
+{% extends "admin/core/base.html" %}
+{% load static i18n foundation %}
+
+{% block title-section %}{% trans "Publication Fee Quotation Settings" %}{% endblock %}
+
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li><a href="{% url 'core_manager_index' %}">{% trans "Manager" %}</a></li>
+    <li>{% trans "Fee Quotation" %}</li>
+{% endblock %}
+
+{% block body %}
+<div class="box">
+    <div class="row expanded">
+        <div class="large-8 columns">
+            <div class="title-area">
+                <h2>{% trans "Fee Quotation Configuration" %}</h2>
+            </div>
+            
+            <form method="POST">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="large-12 columns">
+                        <fieldset>
+                            <legend>{% trans "Enable/Disable" %}</legend>
+                            {{ form.is_enabled|foundation }}
+                            {{ form.require_acceptance|foundation }}
+                        </fieldset>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="large-12 columns">
+                        <fieldset>
+                            <legend>{% trans "Section Conditions" %}</legend>
+                            <p class="help-text">
+                                {% trans "Control which article types (sections) require fee quotation." %}
+                            </p>
+                            {{ form.section_mode|foundation }}
+                            
+                            <div id="section-selection" {% if form.instance.section_mode == 'all' %}style="display: none;"{% endif %}>
+                                <label>{% trans "Select Sections" %}</label>
+                                <div class="section-checkboxes">
+                                    {{ form.selected_sections }}
+                                </div>
+                                <p class="help-text small">
+                                    {{ form.selected_sections.help_text }}
+                                </p>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="large-12 columns">
+                        <fieldset>
+                            <legend>{% trans "API Request Configuration" %}</legend>
+                            {{ form.api_url|foundation }}
+                            
+                            <label for="id_request_body_template">
+                                {% trans "Request Body Template" %}
+                                <span class="helper-text">{{ form.request_body_template.help_text }}</span>
+                            </label>
+                            {{ form.request_body_template }}
+                            
+                            <label for="id_api_headers">
+                                {% trans "API Headers (JSON)" %}
+                                <span class="helper-text">{{ form.api_headers.help_text }}</span>
+                            </label>
+                            {{ form.api_headers }}
+                        </fieldset>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="large-12 columns">
+                        <fieldset>
+                            <legend>{% trans "API Response Configuration" %}</legend>
+                            <p class="help-text">
+                                {% trans "Configure how to extract the quote ID from the API response and build the quotation URL." %}
+                            </p>
+                            {{ form.response_quote_id_field|foundation }}
+                            {{ form.quotation_url_template|foundation }}
+                        </fieldset>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="large-12 columns">
+                        <fieldset>
+                            <legend>{% trans "Author-Facing UI" %}</legend>
+                            {{ form.button_text|foundation }}
+                            {{ form.instructions_text|foundation }}
+                        </fieldset>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="large-12 columns">
+                        <button type="submit" class="button success">
+                            <i class="fa fa-save"></i> {% trans "Save Configuration" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <div class="large-4 columns">
+            <div class="title-area">
+                <h2>{% trans "Webhook Information" %}</h2>
+            </div>
+            
+            <div class="callout">
+                <h5>{% trans "Webhook URL" %}</h5>
+                <p class="small">{% trans "Configure your third-party service to send acceptance callbacks to:" %}</p>
+                <code class="small" style="word-break: break-all;">
+                    {{ request.scheme }}://{{ request.get_host }}{% url 'fee_quotation_webhook' journal_code=request.journal.code %}
+                </code>
+                
+                <h5 class="margin-top">{% trans "Webhook Secret" %}</h5>
+                <p class="small">{% trans "Use this secret to sign webhook payloads:" %}</p>
+                {% if config.webhook_secret %}
+                    <code class="small" style="word-break: break-all;">{{ config.webhook_secret }}</code>
+                {% else %}
+                    <em>{% trans "No secret configured" %}</em>
+                {% endif %}
+                
+                <form method="POST" action="{% url 'fee_quotation_regenerate_secret' %}" class="margin-top">
+                    {% csrf_token %}
+                    <button type="submit" class="button small warning">
+                        <i class="fa fa-refresh"></i> {% trans "Regenerate Secret" %}
+                    </button>
+                </form>
+            </div>
+            
+            <div class="title-area">
+                <h2>{% trans "Expected Webhook Payload" %}</h2>
+            </div>
+            <div class="callout secondary">
+                <pre style="font-size: 11px; overflow-x: auto;">{
+    "quote_id": "string",
+    "status": "accepted" | "declined",
+    "timestamp": "2024-01-01T00:00:00Z"
+}</pre>
+                <p class="small">
+                    {% trans "The" %} <code>quote_id</code> {% trans "must match the ID returned by your API." %}
+                </p>
+                <p class="small">
+                    {% trans "Include the header" %} <code>X-Webhook-Signature</code> 
+                    {% trans "with the HMAC-SHA256 signature of the request body." %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if recent_quotations %}
+<div class="box">
+    <div class="title-area">
+        <h2>{% trans "Recent Quotations" %}</h2>
+    </div>
+    
+    <table class="scroll">
+        <thead>
+            <tr>
+                <th>{% trans "Quote ID" %}</th>
+                <th>{% trans "Article" %}</th>
+                <th>{% trans "Author" %}</th>
+                <th>{% trans "Status" %}</th>
+                <th>{% trans "Created" %}</th>
+                <th>{% trans "Actions" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quotation in recent_quotations %}
+            <tr>
+                <td><small>{{ quotation.external_quote_id|default:quotation.pk|truncatechars:12 }}</small></td>
+                <td>
+                    <a href="{% url 'manage_archive_article' quotation.article.pk %}">
+                        {{ quotation.article.title|truncatechars:40 }}
+                    </a>
+                </td>
+                <td>{{ quotation.author.full_name }}</td>
+                <td>
+                    {% if quotation.status == 'accepted' %}
+                        <span class="label success">{{ quotation.get_status_display }}</span>
+                    {% elif quotation.status == 'declined' %}
+                        <span class="label alert">{{ quotation.get_status_display }}</span>
+                    {% elif quotation.status == 'error' %}
+                        <span class="label alert">{{ quotation.get_status_display }}</span>
+                    {% else %}
+                        <span class="label secondary">{{ quotation.get_status_display }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ quotation.created|date:"Y-m-d H:i" }}</td>
+                <td>
+                    <a href="{% url 'fee_quotation_detail' quotation.pk %}" class="button tiny">
+                        {% trans "View" %}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block js %}
+{{ block.super }}
+<style>
+    .code-editor {
+        font-family: monospace;
+        font-size: 12px;
+    }
+    .margin-top {
+        margin-top: 1rem;
+    }
+    .helper-text {
+        font-size: 0.8em;
+        color: #666;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    .section-checkboxes {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #e0e0e0;
+        padding: 0.5rem;
+        background: #fafafa;
+        border-radius: 4px;
+    }
+    .section-checkboxes label {
+        display: block;
+        padding: 0.25rem 0;
+        cursor: pointer;
+    }
+    .section-checkboxes label:hover {
+        background: #f0f0f0;
+    }
+</style>
+<script>
+(function() {
+    var sectionModeSelect = document.getElementById('id_section_mode');
+    var sectionSelection = document.getElementById('section-selection');
+    
+    function toggleSectionSelection() {
+        if (sectionModeSelect.value === 'all') {
+            sectionSelection.style.display = 'none';
+        } else {
+            sectionSelection.style.display = 'block';
+        }
+    }
+    
+    if (sectionModeSelect && sectionSelection) {
+        sectionModeSelect.addEventListener('change', toggleSectionSelection);
+        toggleSectionSelection();
+    }
+})();
+</script>
+{% endblock %}
+

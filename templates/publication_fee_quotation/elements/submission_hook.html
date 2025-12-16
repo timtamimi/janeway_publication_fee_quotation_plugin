@@ -1,0 +1,284 @@
+{% load static i18n %}
+
+{# This template is injected into the submission review page via the submission_review hook #}
+{# At this point, the article exists and we have all the data needed to request a fee quotation #}
+
+<div class="title-area">
+    <h2>{% trans "Publication Fee Quotation" %}</h2>
+</div>
+
+<div id="fee-quotation-container" 
+     class="fee-quotation-section content submission-content" 
+     data-require-acceptance="{{ config.require_acceptance|yesno:'true,false' }}"
+     data-article-id="{{ article.pk }}">
+    
+    <div class="fee-quotation-instructions">
+        {{ config.instructions_text|safe }}
+    </div>
+    
+    <div id="fee-quotation-status" class="fee-quotation-status {% if quotation_accepted %}accepted{% endif %}">
+        <p id="fee-quotation-message">
+            {% if quotation_accepted %}
+                <i class="fa fa-check-circle"></i>
+                {% trans "Your fee quotation has been accepted. You may proceed with your submission." %}
+            {% elif quotation and quotation.quotation_url %}
+                <i class="fa fa-external-link"></i>
+                {% trans "Please click the button below to view and accept your fee quotation." %}
+            {% elif quotation and quotation.status == 'error' %}
+                <i class="fa fa-exclamation-triangle"></i>
+                {% trans "There was an error requesting your fee quotation. Please try again." %}
+            {% else %}
+                <i class="fa fa-info-circle"></i>
+                {% trans "Click the button below to request your publication fee quotation." %}
+            {% endif %}
+        </p>
+    </div>
+    
+    <div id="fee-quotation-actions" class="fee-quotation-actions">
+        {% if quotation_accepted %}
+            {# Already accepted - show badge only #}
+            <span id="quotation-accepted-badge" class="label success">
+                <i class="fa fa-check"></i> {% trans "Fee Quotation Accepted" %}
+            </span>
+        {% elif quotation and quotation.quotation_url %}
+            {# Quotation exists but not yet accepted - show view button #}
+            <a href="{{ quotation.quotation_url }}" 
+               id="view-quotation-btn" 
+               class="button success" 
+               target="_blank">
+                <i class="fa fa-external-link"></i>
+                {% trans "View & Accept Quotation" %}
+            </a>
+            <span id="quotation-accepted-badge" class="label success" style="display: none;">
+                <i class="fa fa-check"></i> {% trans "Fee Quotation Accepted" %}
+            </span>
+        {% else %}
+            {# No quotation yet - show request button #}
+            <button type="button" 
+                    id="request-quotation-btn" 
+                    class="button"
+                    onclick="requestFeeQuotation()">
+                <i class="fa fa-calculator"></i>
+                {{ config.button_text }}
+            </button>
+            
+            <a href="#" 
+               id="view-quotation-btn" 
+               class="button success" 
+               style="display: none;"
+               target="_blank">
+                <i class="fa fa-external-link"></i>
+                {% trans "View & Accept Quotation" %}
+            </a>
+            
+            <span id="quotation-accepted-badge" class="label success" style="display: none;">
+                <i class="fa fa-check"></i> {% trans "Fee Quotation Accepted" %}
+            </span>
+        {% endif %}
+    </div>
+    
+    <div id="fee-quotation-error" class="callout alert" style="display: none;">
+        <p id="fee-quotation-error-message"></p>
+    </div>
+    
+    {# Hidden input to track acceptance status for form validation #}
+    <input type="hidden" 
+           id="fee-quotation-accepted" 
+           name="fee_quotation_accepted" 
+           value="{% if quotation_accepted %}true{% else %}false{% endif %}">
+    <input type="hidden" 
+           id="fee-quotation-id" 
+           name="fee_quotation_id" 
+           value="{% if quotation %}{{ quotation.pk }}{% endif %}">
+</div>
+
+<style>
+    .fee-quotation-section {
+        margin: 1rem 0;
+        padding: 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        background: #fafafa;
+    }
+    .fee-quotation-instructions {
+        margin-bottom: 1rem;
+    }
+    .fee-quotation-status {
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        background: #fff;
+        border-radius: 4px;
+    }
+    .fee-quotation-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .fee-quotation-actions .label {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+    }
+    #fee-quotation-status.checking {
+        opacity: 0.7;
+    }
+    #fee-quotation-status.accepted {
+        background: #e6f4ea;
+        border: 1px solid #34a853;
+    }
+    #fee-quotation-status.error {
+        background: #fce8e6;
+        border: 1px solid #ea4335;
+    }
+</style>
+
+<script>
+(function() {
+    var container = document.getElementById('fee-quotation-container');
+    var articleId = container.dataset.articleId;
+    var quotationId = document.getElementById('fee-quotation-id').value || null;
+    var pollInterval = null;
+    var requireAcceptance = container.dataset.requireAcceptance === 'true';
+    
+    // Make function globally available
+    window.requestFeeQuotation = function() {
+        var btn = document.getElementById('request-quotation-btn');
+        var messageEl = document.getElementById('fee-quotation-message');
+        var errorEl = document.getElementById('fee-quotation-error');
+        var errorMsgEl = document.getElementById('fee-quotation-error-message');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> {% trans "Requesting..." %}';
+        errorEl.style.display = 'none';
+        
+        // Make the request to get fee quotation
+        fetch('{% url "fee_quotation_request" article_id=0 %}'.replace('/0/', '/' + articleId + '/'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                quotationId = data.quotation_id;
+                document.getElementById('fee-quotation-id').value = quotationId;
+                showQuotationButton(data.quotation_url);
+            } else {
+                showError(data.error || '{% trans "Failed to request fee quotation. Please try again." %}');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-calculator"></i> {{ config.button_text }}';
+            }
+        })
+        .catch(function(error) {
+            console.error('Error requesting quotation:', error);
+            showError('{% trans "An error occurred. Please try again." %}');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-calculator"></i> {{ config.button_text }}';
+        });
+    };
+    
+    function showError(message) {
+        var errorEl = document.getElementById('fee-quotation-error');
+        var errorMsgEl = document.getElementById('fee-quotation-error-message');
+        errorMsgEl.textContent = message;
+        errorEl.style.display = 'block';
+    }
+    
+    function showQuotationButton(quotationUrl) {
+        var requestBtn = document.getElementById('request-quotation-btn');
+        var viewBtn = document.getElementById('view-quotation-btn');
+        var messageEl = document.getElementById('fee-quotation-message');
+        
+        if (requestBtn) requestBtn.style.display = 'none';
+        viewBtn.href = quotationUrl;
+        viewBtn.style.display = 'inline-block';
+        messageEl.innerHTML = '<i class="fa fa-external-link"></i> {% trans "Please click the button to view and accept your fee quotation." %}';
+        
+        // Start polling for acceptance
+        startPolling();
+    }
+    
+    function startPolling() {
+        if (quotationId && !pollInterval) {
+            pollInterval = setInterval(checkQuotationStatus, 5000); // Poll every 5 seconds
+        }
+    }
+    
+    function stopPolling() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    }
+    
+    function checkQuotationStatus() {
+        if (!quotationId) return;
+        
+        var statusEl = document.getElementById('fee-quotation-status');
+        statusEl.classList.add('checking');
+        
+        fetch('{% url "fee_quotation_status" quotation_id=0 %}'.replace('/0/', '/' + quotationId + '/'))
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                statusEl.classList.remove('checking');
+                
+                if (data.is_accepted) {
+                    markAsAccepted();
+                }
+            })
+            .catch(function(error) {
+                console.error('Error checking quotation status:', error);
+                statusEl.classList.remove('checking');
+            });
+    }
+    
+    function markAsAccepted() {
+        stopPolling();
+        
+        var viewBtn = document.getElementById('view-quotation-btn');
+        var acceptedBadge = document.getElementById('quotation-accepted-badge');
+        var messageEl = document.getElementById('fee-quotation-message');
+        var statusEl = document.getElementById('fee-quotation-status');
+        var hiddenInput = document.getElementById('fee-quotation-accepted');
+        
+        if (viewBtn) viewBtn.style.display = 'none';
+        acceptedBadge.style.display = 'inline-block';
+        messageEl.innerHTML = '<i class="fa fa-check-circle"></i> {% trans "Your fee quotation has been accepted. You may now proceed with your submission." %}';
+        statusEl.classList.add('accepted');
+        hiddenInput.value = 'true';
+        
+        // Enable the submit button if it was disabled
+        enableSubmitButton();
+    }
+    
+    function enableSubmitButton() {
+        // Find and enable the form submit button
+        var submitBtns = document.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submitBtns.forEach(function(btn) {
+            btn.disabled = false;
+        });
+    }
+    
+    // Form validation to ensure quotation is accepted (if required)
+    if (requireAcceptance) {
+        var form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                var accepted = document.getElementById('fee-quotation-accepted').value === 'true';
+                if (!accepted) {
+                    e.preventDefault();
+                    alert('{% trans "Please accept the fee quotation before submitting." %}');
+                    return false;
+                }
+            });
+        }
+    }
+    
+    // Start polling if we already have a quotation that's not yet accepted
+    {% if quotation and quotation.quotation_url and not quotation_accepted %}
+    startPolling();
+    {% endif %}
+})();
+</script>
