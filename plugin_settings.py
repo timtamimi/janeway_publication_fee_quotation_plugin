@@ -16,7 +16,7 @@ DESCRIPTION = (
 )
 AUTHOR = "Public Library of Science"
 VERSION = "1.0"
-SHORT_NAME = "publication_fee_quotation"
+SHORT_NAME = "janeway_publication_fee_quotation_plugin"
 MANAGER_URL = "fee_quotation_manager"
 JANEWAY_VERSION = "1.5.0"
 
@@ -40,7 +40,7 @@ def install():
     """Install the plugin and create necessary settings."""
     PublicationFeeQuotationPlugin.install()
     update_settings(
-        file_path="plugins/publication_fee_quotation/install/settings.json"
+        file_path="plugins/janeway_publication_fee_quotation_plugin/install/settings.json"
     )
 
 
@@ -53,7 +53,7 @@ def hook_registry():
     try:
         return {
             "submission_review": {
-                "module": "plugins.publication_fee_quotation.hooks",
+                "module": "plugins.janeway_publication_fee_quotation_plugin.hooks",
                 "function": "inject_fee_quotation_ui",
                 "name": PLUGIN_NAME,
             },
@@ -63,4 +63,3 @@ def hook_registry():
         return {}
     except Exception:
         return {}
-

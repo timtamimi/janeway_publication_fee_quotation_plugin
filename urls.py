@@ -5,7 +5,7 @@ __maintainer__ = "Public Library of Science"
 
 from django.urls import path
 
-from plugins.publication_fee_quotation import views
+from plugins.janeway_publication_fee_quotation_plugin import views
 
 urlpatterns = [
     # Manager/Admin URLs
@@ -24,7 +24,6 @@ urlpatterns = [
         views.quotation_detail,
         name="fee_quotation_detail",
     ),
-    
     # Author-facing URLs
     path(
         "request/<int:article_id>/",
@@ -36,7 +35,6 @@ urlpatterns = [
         views.check_quotation_status,
         name="fee_quotation_status",
     ),
-    
     # Webhook URL (note: this is journal-specific)
     path(
         "webhook/<str:journal_code>/",
@@ -44,4 +42,3 @@ urlpatterns = [
         name="fee_quotation_webhook",
     ),
 ]
-

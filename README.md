@@ -1,6 +1,16 @@
 # janeway-publication-fee-quotation-plugin
 A plugin for Janeway: Generate publication fee quotes from a third party API and track fee acceptance.
 
+## Installation
+
+```bash
+# Install the plugin
+make command CMD="install_plugins janeway_publication_fee_quotation_plugin"
+
+# Run migrations
+make command CMD="migrate janeway_publication_fee_quotation_plugin"
+```
+
 ## The Admin side
 Here’s what it looks like when viewed in the Janeway admin UI:
 <img width="1024" height="977" alt="image" src="https://github.com/user-attachments/assets/56096a99-104e-49e8-aa3f-a300d0ff0bfb" />
